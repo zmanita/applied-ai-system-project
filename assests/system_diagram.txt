@@ -1,0 +1,44 @@
+╔══════════════════════════════════════════════════════════════════════╗
+║                         MOOD MACHINE SYSTEM                         ║
+╚══════════════════════════════════════════════════════════════════════╝
+
+  ┌─────────────────────────────────────────────────────────────────┐
+  │                        DATA LAYER                               │
+  │  dataset.py                                                     │
+  │  ┌──────────────────┐  ┌───────────────────┐  ┌─────────────┐  │
+  │  │  POSITIVE_WORDS  │  │   NEGATIVE_WORDS  │  │ SAMPLE_POSTS│  │
+  │  │  (10 words)      │  │   (10 words)      │  │ TRUE_LABELS │◄─┼── 👤 Human labels
+  │  └────────┬─────────┘  └────────┬──────────┘  └──────┬──────┘  │
+  └───────────┼────────────────────┼─────────────────────┼─────────┘
+              │                    │                      │
+              ▼                    ▼                      ▼
+  ┌───────────────────────────┐   ┌────────────────────────────────┐
+  │    RULE-BASED CLASSIFIER  │   │       ML CLASSIFIER            │
+  │    mood_analyzer.py       │   │       ml_experiments.py        │
+  │                           │   │                                │
+  │  preprocess()             │   │  CountVectorizer               │
+  │  (lowercase, emoji map,   │   │  (bag-of-words vectors)        │
+  │   remove punct, negation) │   │      +                         │
+  │      +                    │   │  LogisticRegression            │
+  │  score_text()             │   │  (trained on SAMPLE_POSTS)     │
+  │  (word match + negation)  │   │                                │
+  │      +                    │   └───────────────┬────────────────┘
+  │  predict_label()          │                   │
+  └─────────────┬─────────────┘                   │
+                └──────────────┬──────────────────┘
+                               ▼
+  ┌────────────────────────────────────────────────────────────────┐
+  │                    RELIABILITY LAYER  (reliability.py)         │
+  │                                                                │
+  │  EdgeCaseDetector  ·  ConsistencyChecker  ·  ModelComparator   │
+  │  confidence_label()  ·  ReliabilityReport                      │
+  └──────────────────────┬─────────────────────────────────────────┘
+                         ▼
+  ┌─────────────────────────────────────────────────────────────────┐
+  │                     ORCHESTRATOR  (main.py)                     │
+  │  startup self-test → dataset eval → batch demo → interactive    │
+  │                                                                 │
+  │  Automated testing                Human-in-the-loop             │
+  │  test_mood_classifier.py          Interactive terminal loop     │
+  │  (9 test classes, 60+ tests)      👤 user types → live output   │
+  └─────────────────────────────────────────────────────────────────┘

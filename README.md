@@ -136,6 +136,14 @@ You:
 
 ---
 
+## Demo Walkthrough
+
+> **Video walkthrough:** *(Loom link coming soon)*
+
+The text walkthroughs below show the system running end-to-end on four inputs that cover the main cases: clear positive sentiment, negation flipping, sarcasm causing model disagreement, and genuinely mixed feelings.
+
+---
+
 ## Sample Interactions
 
 ### Example 1 — Clear positive sentiment
