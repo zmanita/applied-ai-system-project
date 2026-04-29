@@ -1,94 +1,213 @@
 """
-Entry point for the Mood Machine rule based mood analyzer.
+Entry point for the Mood Machine rule-based mood analyzer.
+
+Usage:
+  python main.py           — evaluate on dataset, then run interactive mode
+  python main.py --test    — run the full test suite and exit
 """
 
+import sys
+import unittest
 from typing import List
 
 from mood_analyzer import MoodAnalyzer
 from dataset import SAMPLE_POSTS, TRUE_LABELS
+from reliability import (
+    EdgeCaseDetector,
+    ConsistencyChecker,
+    ModelComparator,
+    ReliabilityReport,
+    confidence_label,
+)
 
+
+# ---------------------------------------------------------------------------
+# Startup self-test — runs before anything else to verify the system works
+# ---------------------------------------------------------------------------
+
+def run_startup_selftest() -> bool:
+    """Quick sanity check: verify predict_label returns the expected labels."""
+    a = MoodAnalyzer()
+    checks = [
+        ("I love this", "positive"),
+        ("This is terrible", "negative"),
+        ("This is a sentence", "neutral"),
+    ]
+    passed = sum(1 for text, expected in checks if a.predict_label(text) == expected)
+    ok = passed == len(checks)
+    status = "OK" if ok else f"WARN — only {passed}/{len(checks)} sanity checks passed"
+    print(f"[self-test] {status}")
+    return ok
+
+
+# ---------------------------------------------------------------------------
+# Dataset evaluation with full reliability report
+# ---------------------------------------------------------------------------
 
 def evaluate_rule_based(posts: List[str], labels: List[str]) -> float:
     """
-    Evaluate the rule based MoodAnalyzer on a labeled dataset.
+    Evaluate the rule-based MoodAnalyzer on a labeled dataset.
 
-    Prints each text with its predicted label and the true label,
-    then returns the overall accuracy as a float between 0 and 1.
+    Prints each prediction vs. ground truth, then shows the full reliability
+    report (accuracy, confusion matrix, per-class metrics, edge cases).
     """
     analyzer = MoodAnalyzer()
     correct = 0
-    total = len(posts)
 
-    print("=== Rule Based Evaluation on SAMPLE_POSTS ===")
+    print("\n=== Rule-Based Evaluation on SAMPLE_POSTS ===")
     for text, true_label in zip(posts, labels):
-        predicted_label = analyzer.predict_label(text)
-        is_correct = predicted_label == true_label
+        predicted = analyzer.predict_label(text)
+        score = analyzer.score_text(text)
+        conf = confidence_label(score)
+        is_correct = predicted == true_label
         if is_correct:
             correct += 1
+        mark = "✓" if is_correct else "✗"
+        print(f'  {mark} "{text}"')
+        print(f'      predicted={predicted} ({conf})  true={true_label}')
 
-        # If you implement explain(), you can uncomment these lines:
-        # reason = analyzer.explain(text)
-        # print(f'"{text}" -> predicted={predicted_label}, true={true_label} ({reason})')
-
-        print(f'"{text}" -> predicted={predicted_label}, true={true_label}')
-
-    if total == 0:
-        print("\nNo labeled examples to evaluate.")
+    if not posts:
+        print("  No labeled examples to evaluate.")
         return 0.0
 
-    accuracy = correct / total
-    print(f"\nRule based accuracy on SAMPLE_POSTS: {accuracy:.2f}")
+    accuracy = correct / len(posts)
+    print(f"\nRule-based accuracy: {accuracy:.1%}  ({correct}/{len(posts)} correct)")
+
+    # Full reliability report: confusion matrix, per-class F1, edge cases
+    report = ReliabilityReport(analyzer)
+    report.print_report(posts, labels)
+
     return accuracy
 
 
-def run_batch_demo() -> None:
-    """
-    Run the MoodAnalyzer on the sample posts and print predictions only.
+# ---------------------------------------------------------------------------
+# Batch demo
+# ---------------------------------------------------------------------------
 
-    This is a quick way to see how your rules behave without comparing
-    to the true labels.
-    """
+def run_batch_demo() -> None:
+    """Run predictions on SAMPLE_POSTS and display confidence + edge case flags."""
     analyzer = MoodAnalyzer()
-    print("\n=== Batch Demo on SAMPLE_POSTS (rule based) ===")
+    detector = EdgeCaseDetector()
+
+    print("\n=== Batch Demo on SAMPLE_POSTS (rule-based) ===")
     for text in SAMPLE_POSTS:
         label = analyzer.predict_label(text)
-        # If explain() is implemented, show a short explanation.
-        # reason = analyzer.explain(text)
-        # print(f'"{text}" -> {label} ({reason})')
-        print(f'"{text}" -> {label}')
+        score = analyzer.score_text(text)
+        conf = confidence_label(score)
+        flags = detector.detect(text)
+        flag_str = f"  [{', '.join(flags)}]" if flags else ""
+        print(f'  "{text}" → {label} [{conf}]{flag_str}')
 
+
+# ---------------------------------------------------------------------------
+# Interactive loop — reliability info on every prediction
+# ---------------------------------------------------------------------------
 
 def run_interactive_loop() -> None:
     """
-    Let the user type their own sentences and see the predicted mood.
+    Let the user type sentences and see predictions with live reliability info:
+      - Confidence level (derived from score magnitude)
+      - Edge cases detected (negation, emoji, possible sarcasm)
+      - Rule-based vs ML comparison (AGREE / DISAGREE)
 
-    Type 'quit' or press Enter on an empty line to exit.
+    Session statistics are shown on exit.
     """
     analyzer = MoodAnalyzer()
-    print("\n=== Interactive Mood Machine (rule based) ===")
-    print("Type a sentence to analyze its mood.")
-    print("Type 'quit' or press Enter on an empty line to exit.\n")
+    detector = EdgeCaseDetector()
+    checker = ConsistencyChecker(analyzer.predict_label)
+
+    # Try to wire up the ML comparator; gracefully skip if unavailable.
+    comparator = None
+    try:
+        from ml_experiments import train_ml_model
+        vectorizer, ml_model = train_ml_model(SAMPLE_POSTS, TRUE_LABELS)
+        comparator = ModelComparator(analyzer, vectorizer, ml_model)
+    except Exception:
+        pass
+
+    total = 0
+    edge_count = 0
+    disagree_count = 0
+
+    print("\n=== Interactive Mood Machine ===")
+    print("Type a sentence to see its predicted mood + reliability info.")
+    print("Type 'quit' or press Enter to exit.\n")
 
     while True:
-        user_input = input("You: ").strip()
-        if user_input == "" or user_input.lower() == "quit":
-            print("Goodbye from the Mood Machine.")
+        try:
+            user_input = input("You: ").strip()
+        except (EOFError, KeyboardInterrupt):
+            print()
             break
 
-        label = analyzer.predict_label(user_input)
-        # If explain() is implemented, you can include an explanation:
-        # reason = analyzer.explain(user_input)
-        # print(f"Model: {label} ({reason})")
-        print(f"Model: {label}")
+        if user_input == "" or user_input.lower() == "quit":
+            break
 
+        total += 1
+        label = analyzer.predict_label(user_input)
+        score = analyzer.score_text(user_input)
+        conf = confidence_label(score)
+
+        print(f"  Mood       : {label}  [confidence: {conf} | score: {score:+d}]")
+
+        # Consistency check (deterministic — always passes for a pure function,
+        # but documents the guarantee explicitly to the user)
+        consistent, _ = checker.check(user_input)
+        if not consistent:               # should never happen
+            print("  [!!] WARNING: inconsistent predictions detected")
+
+        # Edge case detection
+        flags = detector.detect(user_input)
+        if flags:
+            edge_count += 1
+            print(f"  Edge cases : {', '.join(flags)}")
+            if "possible sarcasm" in flags:
+                print("  [!] Sarcasm hint: rule-based score may be unreliable here")
+
+        # Model comparison
+        if comparator:
+            cmp = comparator.compare(user_input)
+            agreement = "AGREE" if cmp["agree"] else "DISAGREE"
+            print(f"  Models     : rule={cmp['rule_based']}  ML={cmp['ml_model']}  [{agreement}]")
+            if not cmp["agree"]:
+                disagree_count += 1
+                print("  [!] Models disagree — consider both predictions")
+
+        print()
+
+    # Session summary
+    if total > 0:
+        print("--- Session Summary ---")
+        print(f"  Predictions made : {total}")
+        print(f"  Edge cases found : {edge_count}")
+        if comparator and total > 0:
+            agree_rate = (total - disagree_count) / total
+            print(f"  Model agreement  : {agree_rate:.1%}")
+    print("Goodbye from the Mood Machine.")
+
+
+# ---------------------------------------------------------------------------
+# Test-suite runner (invoked by --test flag)
+# ---------------------------------------------------------------------------
+
+def _run_tests() -> None:
+    import test_mood_classifier
+    loader = unittest.TestLoader()
+    suite = loader.loadTestsFromModule(test_mood_classifier)
+    runner = unittest.TextTestRunner(verbosity=2)
+    result = runner.run(suite)
+    sys.exit(0 if result.wasSuccessful() else 1)
+
+
+# ---------------------------------------------------------------------------
+# Entry point
+# ---------------------------------------------------------------------------
 
 if __name__ == "__main__":
+    if "--test" in sys.argv:
+        _run_tests()
+
+    run_startup_selftest()
     evaluate_rule_based(SAMPLE_POSTS, TRUE_LABELS)
-
     run_batch_demo()
-
     run_interactive_loop()
-
-    print("\nTip: After you explore the rule based model here,")
-    print("run `python ml_experiments.py` to try a simple ML based model")
-    print("trained on the same SAMPLE_POSTS and TRUE_LABELS.")

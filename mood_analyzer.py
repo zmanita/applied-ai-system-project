@@ -55,19 +55,35 @@ class MoodAnalyzer:
       - Normalize repeated characters ("soooo" -> "soo")
       """
       cleaned = text.strip().lower()
-      
-      # Handle simple emojis by extracting them before removing punctuation
-      emojis = [":)", ":(", ":-(", ":d", ";)", "🥲", "😂", "😭", "😍", "😡"]
-      for emoji in emojis:
-        cleaned = cleaned.replace(emoji, f" {emoji} ")
-      
+
+      # Text emojis contain punctuation characters (: ) - ) that would be stripped.
+      # Replace them with alphabetic placeholders first so they survive the next step.
+      text_emoji_map = {
+          ":)": "XEMOIJSMILE",
+          ":(": "XEMOIJFROWN",
+          ":-(": "XEMOIJSAD",
+          ":d":  "XEMOIJGRIN",
+          ";)":  "XEMOIJWINK",
+      }
+      for emoji, placeholder in text_emoji_map.items():
+          cleaned = cleaned.replace(emoji, f" {placeholder} ")
+
+      # Unicode emojis are not ASCII punctuation so they survive naturally;
+      # just add spacing so they tokenize as their own tokens.
+      for ue in ["🥲", "😂", "😭", "😍", "😡", "💀"]:
+          cleaned = cleaned.replace(ue, f" {ue} ")
+
       # Remove punctuation
       cleaned = cleaned.translate(str.maketrans('', '', string.punctuation))
-      
+
       # Normalize repeated characters (e.g., "soooo" -> "soo")
       cleaned = re.sub(r'(.)\1{2,}', r'\1\1', cleaned)
-      
+
       tokens = cleaned.split()
+
+      # Restore placeholders back to their original emoji strings
+      reverse_map = {v: k for k, v in text_emoji_map.items()}
+      tokens = [reverse_map.get(t, t) for t in tokens]
 
       return tokens
 
@@ -119,12 +135,13 @@ class MoodAnalyzer:
         Just remember that whatever labels you return should match the labels
         you use in TRUE_LABELS in dataset.py if you care about accuracy.
         """
-        # TODO: Implement this method.
-        #   1. Call self.score_text(text) to get the numeric score.
-        #   2. Return "positive" if the score is above 0.
-        #   3. Return "negative" if the score is below 0.
-        #   4. Return "neutral" otherwise.
-        pass
+        score = self.score_text(text)
+        if score > 0:
+            return "positive"
+        elif score < 0:
+            return "negative"
+        else:
+            return "neutral"
 
     # ---------------------------------------------------------------------
     # Explanations (optional but recommended)
