@@ -19,6 +19,7 @@ from reliability import (
     ReliabilityReport,
     confidence_label,
 )
+from logger import setup_logger, log_prediction, log_edge_case_failure, log_error
 
 
 # ---------------------------------------------------------------------------
@@ -115,6 +116,7 @@ def run_interactive_loop() -> None:
     analyzer = MoodAnalyzer()
     detector = EdgeCaseDetector()
     checker = ConsistencyChecker(analyzer.predict_label)
+    logger = setup_logger()
 
     # Try to wire up the ML comparator; gracefully skip if unavailable.
     comparator = None
@@ -131,7 +133,7 @@ def run_interactive_loop() -> None:
 
     print("\n=== Interactive Mood Machine ===")
     print("Type a sentence to see its predicted mood + reliability info.")
-    print("Type 'quit' or press Enter to exit.\n")
+    print("Type 'quit' to exit.\n")
 
     while True:
         try:
@@ -140,38 +142,83 @@ def run_interactive_loop() -> None:
             print()
             break
 
-        if user_input == "" or user_input.lower() == "quit":
+        if user_input.lower() == "quit":
             break
 
-        total += 1
-        label = analyzer.predict_label(user_input)
-        score = analyzer.score_text(user_input)
-        conf = confidence_label(score)
+        # --- Input validation ---
+        if not user_input:
+            print("  [!] Please type something. (Type 'quit' to exit.)\n")
+            log_error(logger, error_type="empty_input")
+            continue
 
+        if len(user_input) > 500:
+            print(f"  [!] Input too long ({len(user_input)} chars). Please keep it under 500 characters.\n")
+            log_error(logger, error_type="input_too_long", detail=f"{len(user_input)} chars")
+            continue
+
+        if not any(c.isalpha() for c in user_input):
+            print(f"  [!] Input must contain at least one word. Got: {user_input!r}\n")
+            log_error(logger, error_type="no_alpha_chars", detail=user_input)
+            continue
+
+        # --- Prediction ---
+        ml_pred = None
+        models_agree = None
+        flags: List[str] = []
+
+        try:
+            label = analyzer.predict_label(user_input)
+            score = analyzer.score_text(user_input)
+            conf = confidence_label(score)
+        except Exception as exc:
+            print(f"  [!] Prediction failed: {exc}\n")
+            log_error(logger, error_type="prediction_error", detail=str(exc))
+            continue
+
+        total += 1
         print(f"  Mood       : {label}  [confidence: {conf} | score: {score:+d}]")
 
         # Consistency check (deterministic — always passes for a pure function,
         # but documents the guarantee explicitly to the user)
         consistent, _ = checker.check(user_input)
-        if not consistent:               # should never happen
+        if not consistent:
             print("  [!!] WARNING: inconsistent predictions detected")
+            log_error(logger, error_type="inconsistent_prediction", detail=user_input)
 
         # Edge case detection
         flags = detector.detect(user_input)
         if flags:
             edge_count += 1
             print(f"  Edge cases : {', '.join(flags)}")
+            log_edge_case_failure(logger, text=user_input, flags=flags)
             if "possible sarcasm" in flags:
                 print("  [!] Sarcasm hint: rule-based score may be unreliable here")
 
         # Model comparison
         if comparator:
-            cmp = comparator.compare(user_input)
-            agreement = "AGREE" if cmp["agree"] else "DISAGREE"
-            print(f"  Models     : rule={cmp['rule_based']}  ML={cmp['ml_model']}  [{agreement}]")
-            if not cmp["agree"]:
-                disagree_count += 1
-                print("  [!] Models disagree — consider both predictions")
+            try:
+                cmp = comparator.compare(user_input)
+                ml_pred = cmp["ml_model"]
+                models_agree = cmp["agree"]
+                agreement = "AGREE" if models_agree else "DISAGREE"
+                print(f"  Models     : rule={cmp['rule_based']}  ML={ml_pred}  [{agreement}]")
+                if not models_agree:
+                    disagree_count += 1
+                    print("  [!] Models disagree — consider both predictions")
+            except Exception as exc:
+                print(f"  [!] ML comparison failed: {exc}")
+                log_error(logger, error_type="ml_comparison_error", detail=str(exc))
+
+        log_prediction(
+            logger,
+            text=user_input,
+            rule_pred=label,
+            ml_pred=ml_pred,
+            confidence=conf,
+            score=score,
+            edge_cases=flags,
+            models_agree=models_agree,
+        )
 
         print()
 

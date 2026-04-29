@@ -23,6 +23,38 @@ POSITIVE_WORDS = [
     "chill",
     "relaxed",
     "amazing",
+    # expanded
+    "joy",
+    "joyful",
+    "glad",
+    "thrilled",
+    "grateful",
+    "thankful",
+    "proud",
+    "hopeful",
+    "optimistic",
+    "wonderful",
+    "fantastic",
+    "brilliant",
+    "delighted",
+    "cheerful",
+    "pumped",
+    "stoked",
+    "content",
+    "peaceful",
+    "calm",
+    "energized",
+    "motivated",
+    "inspired",
+    "confident",
+    "blessed",
+    "nice",
+    "fine",
+    "okay",
+    "better",
+    "refreshed",
+    "thriving",
+    "winning",
 ]
 
 NEGATIVE_WORDS = [
@@ -36,6 +68,41 @@ NEGATIVE_WORDS = [
     "stressed",
     "hate",
     "boring",
+    # expanded
+    "cry",
+    "crying",
+    "miserable",
+    "depressed",
+    "hopeless",
+    "lonely",
+    "scared",
+    "anxious",
+    "worried",
+    "nervous",
+    "frustrated",
+    "annoyed",
+    "disappointed",
+    "hurt",
+    "pain",
+    "suffering",
+    "exhausted",
+    "drained",
+    "overwhelmed",
+    "lost",
+    "broken",
+    "numb",
+    "dread",
+    "dreading",
+    "regret",
+    "guilty",
+    "ashamed",
+    "embarrassed",
+    "pathetic",
+    "terrible",
+    "horrible",
+    "disgusting",
+    "sick",
+    "struggling",
 ]
 
 # ---------------------------------------------------------------------
@@ -93,6 +160,67 @@ TRUE_LABELS.append("negative")
 
 SAMPLE_POSTS.append("Love going to work every day :)")
 TRUE_LABELS.append("negative")  # sarcasm
+
+# Additional examples to improve ML generalization
+SAMPLE_POSTS.append("I feel like crying today")
+TRUE_LABELS.append("negative")
+
+SAMPLE_POSTS.append("I am so excited about the presentation")
+TRUE_LABELS.append("positive")
+
+SAMPLE_POSTS.append("Feeling sad now but I guess I will be fine")
+TRUE_LABELS.append("mixed")
+
+SAMPLE_POSTS.append("I can not stop crying, everything is wrong")
+TRUE_LABELS.append("negative")
+
+SAMPLE_POSTS.append("Today was amazing, I am so happy")
+TRUE_LABELS.append("positive")
+
+SAMPLE_POSTS.append("I am really anxious about tomorrow")
+TRUE_LABELS.append("negative")
+
+SAMPLE_POSTS.append("Just got some great news, feeling blessed")
+TRUE_LABELS.append("positive")
+
+SAMPLE_POSTS.append("Nothing feels right lately")
+TRUE_LABELS.append("negative")
+
+SAMPLE_POSTS.append("So grateful for everything in my life")
+TRUE_LABELS.append("positive")
+
+SAMPLE_POSTS.append("I am exhausted and overwhelmed")
+TRUE_LABELS.append("negative")
+
+SAMPLE_POSTS.append("Feeling pumped and motivated today")
+TRUE_LABELS.append("positive")
+
+SAMPLE_POSTS.append("Kind of nervous but also excited")
+TRUE_LABELS.append("mixed")
+
+SAMPLE_POSTS.append("Everything is going wrong and I feel lost")
+TRUE_LABELS.append("negative")
+
+SAMPLE_POSTS.append("Had a wonderful day with my friends")
+TRUE_LABELS.append("positive")
+
+SAMPLE_POSTS.append("I regret so many things")
+TRUE_LABELS.append("negative")
+
+SAMPLE_POSTS.append("Feeling content and at peace")
+TRUE_LABELS.append("positive")
+
+SAMPLE_POSTS.append("Worried about the future but staying hopeful")
+TRUE_LABELS.append("mixed")
+
+SAMPLE_POSTS.append("I hate how things turned out")
+TRUE_LABELS.append("negative")
+
+SAMPLE_POSTS.append("Thrilled about what is coming next")
+TRUE_LABELS.append("positive")
+
+SAMPLE_POSTS.append("Feeling okay I guess, not great not bad")
+TRUE_LABELS.append("neutral")
 #
 # Tips:
 #   - Try to create some examples that are hard to label even for you.
